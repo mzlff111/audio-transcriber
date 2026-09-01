@@ -421,47 +421,30 @@
             messageBox.innerHTML = '';
             resultContainer.classList.remove('show');
 
-           try {
-    await initializeTranscriber();
+            try {
+                await initializeTranscriber();
 
-    progressContainer.classList.add('show');
-    progressText.textContent = 'Транскрибирование...';
-    progressFill.style.width = '0%';
-    statusText.textContent = 'Обработка аудиофайла...';
+                progressContainer.classList.add('show');
+                progressText.textContent = 'Транскрибирование...';
+                progressFill.style.width = '20%';
+                statusText.textContent = 'Декодирование аудиофайла...';
 
-    // 1. Читаем файл как сырой бинарный массив Uint8Array
-    const arrayBuffer = await audioFile.arrayBuffer();
-    const waveData = new Uint8Array(arrayBuffer);
+                // Декодируем аудио в 16000 Hz Float32Array (требование Whisper)
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                const arrayBuffer = await audioFile.arrayBuffer();
+                const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
+                const audioData = decodedAudio.getChannelData(0);
 
-    // 2. Передаем Uint8Array напрямую в Whisper
-    const output = await transcriber(waveData, {
-        top_k: 0,
-        do_sample: false,
-        chunk_length_s: 30,
-        stride_length_s: 5,
-        return_timestamps: true
-    });
+                progressFill.style.width = '50%';
+                statusText.textContent = 'Обработка нейросетью...';
 
-    progressFill.style.width = '100%';
-    progressText.textContent = '✓ Готово!';
-    statusText.textContent = '';
+                const output = await transcriber(audioData, {
+                    top_k: 0,
+                    do_sample: false,
+                    chunk_length_s: 30,
+                    stride_length_s: 5,
+                });
 
-    const text = output.text;
-    resultText.textContent = text;
-    resultContainer.classList.add('show');
-
-    showMessage('✓ Транскрипция завершена успешно!', 'success');
-
-    await new Promise(r => setTimeout(r, 1000));
-    progressContainer.classList.remove('show');
-
-} catch (error) {
-    console.error(error);
-    showMessage(`Ошибка транскрипции: ${error.message}`, 'error');
-    progressContainer.classList.remove('show');
-}
-
-                
                 progressFill.style.width = '100%';
                 progressText.textContent = '✓ Готово!';
                 statusText.textContent = '';
@@ -476,6 +459,7 @@
                 progressContainer.classList.remove('show');
 
             } catch (error) {
+                console.error(error);
                 showMessage(`Ошибка транскрипции: ${error.message}`, 'error');
                 progressContainer.classList.remove('show');
             } finally {
