@@ -137,22 +137,52 @@
             resultContainer.classList.remove('show');
         }
 
+        // Функция ресемплирования аудио в 16000 Гц
+        function resampleTo16kHz(audioBuffer) {
+            const numChannels = 1; // Берем моно
+            const sampleRate = 16000;
+            const offlineCtx = new OfflineAudioContext(numChannels, audioBuffer.duration * sampleRate, sampleRate);
+            const source = offlineCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(offlineCtx.destination);
+            source.start(0);
+            return offlineCtx.startRendering();
+        }
+
         async function transcribe() {
             if (!audioFile) return;
 
             transcribeBtn.disabled = true;
             progressContainer.classList.add('show');
-            progressText.textContent = 'Декодирование аудио...';
-            progressFill.style.width = '20%';
+            progressText.textContent = 'Чтение файла...';
+            progressFill.style.width = '10%';
 
             try {
-                // Декодируем аудиофайлы без нагрузки на сеть
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-                const arrayBuffer = await audioFile.arrayBuffer();
-                const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
-                const audioData = decodedAudio.getChannelData(0);
+                // 1. Инициализируем AudioContext строго при клике
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                const audioContext = new AudioCtx();
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
 
-                // Запускаем фоновый поток Web Worker
+                progressText.textContent = 'Декодирование аудио...';
+                progressFill.style.width = '25%';
+
+                // 2. Безопасное чтение файла
+                const arrayBuffer = await audioFile.arrayBuffer();
+                const decodedAudio = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+
+                progressText.textContent = 'Подготовка к распознаванию...';
+                progressFill.style.width = '40%';
+
+                // 3. Приводим аудио к 16000Hz (требование Whisper)
+                const resampledBuffer = await resampleTo16kHz(decodedAudio);
+                const audioData = resampledBuffer.getChannelData(0);
+
+                // Закрываем контекст, чтобы освободить память
+                audioContext.close();
+
+                // 4. Запускаем воркер
                 if (!worker) {
                     worker = new Worker('worker.js', { type: 'module' });
                 }
@@ -162,10 +192,10 @@
 
                     if (status === 'loading') {
                         progressText.textContent = message;
-                        progressFill.style.width = '40%';
+                        progressFill.style.width = '55%';
                     } else if (status === 'processing') {
                         progressText.textContent = message;
-                        progressFill.style.width = '70%';
+                        progressFill.style.width = '75%';
                     } else if (status === 'complete') {
                         progressFill.style.width = '100%';
                         progressText.textContent = '✓ Готово!';
@@ -181,11 +211,12 @@
                     }
                 };
 
-                // Отправляем массив данных звука в фоновый поток
+                // Отправляем Float32Array воркеру
                 worker.postMessage({ audioData });
 
             } catch (err) {
-                showMessage(`Ошибка обработки аудио: ${err.message}`, 'error');
+                console.error(err);
+                showMessage(`Ошибка декодирования: ${err.message}. Попробуйте файл другого формата (WAV или MP3).`, 'error');
                 progressContainer.classList.remove('show');
                 transcribeBtn.disabled = false;
             }
