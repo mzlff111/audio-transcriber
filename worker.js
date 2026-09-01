@@ -10,7 +10,7 @@ self.addEventListener('message', async (event) => {
 
     try {
         if (!transcriber) {
-            self.postMessage({ status: 'loading', message: 'Загрузка модели Whisper в кэш...' });
+            self.postMessage({ status: 'loading', message: 'Загрузка модели Whisper...' });
             
             transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
                 quantized: true,
@@ -26,16 +26,44 @@ self.addEventListener('message', async (event) => {
             });
         }
 
-        self.postMessage({ status: 'processing', message: 'Идёт обработка нейросетью...' });
+        // --- РУЧНОЕ РАЗБИЕНИЕ НА ЧАНКИ (по 10 секунд) ---
+        const sampleRate = 16000;
+        const chunkSizeSec = 10;
+        const chunkSize = sampleRate * chunkSizeSec; // 160000 отсчетов
+        const totalSamples = audioData.length;
+        
+        let fullText = '';
+        let processedSamples = 0;
 
-        // Явно передаём sampling_rate и упрощаем параметры, чтобы не вызывать зацикливание ONNX
-        const output = await transcriber(audioData, {
-            sampling_rate: 16000,
-            language: 'russian',
-            task: 'transcribe'
-        });
+        while (processedSamples < totalSamples) {
+            const end = Math.min(processedSamples + chunkSize, totalSamples);
+            const chunk = audioData.slice(processedSamples, end);
 
-        self.postMessage({ status: 'complete', text: output.text });
+            // Считаем и отправляем реальный процент готовности
+            const percent = Math.round((end / totalSamples) * 100);
+            self.postMessage({ 
+                status: 'processing', 
+                message: `Распознавание: ${percent}% (${Math.round(end / sampleRate)} сек. из ${Math.round(totalSamples / sampleRate)} сек.)` 
+            });
+
+            // Обрабатываем маленький чанк (не вызывает зависания)
+            const output = await transcriber(chunk, {
+                sampling_rate: sampleRate,
+                language: 'russian',
+                task: 'transcribe'
+            });
+
+            if (output && output.text) {
+                fullText += output.text + ' ';
+            }
+
+            processedSamples += chunkSize;
+            
+            // Кроткий "отдых" для потока, чтобы браузер успел обновить интерфейс
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
+
+        self.postMessage({ status: 'complete', text: fullText.trim() });
 
     } catch (error) {
         console.error(error);
