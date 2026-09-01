@@ -1,6 +1,5 @@
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
 
-// Отключаем локальные модели и разрешаем загрузку с CDN
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
@@ -11,41 +10,35 @@ self.addEventListener('message', async (event) => {
 
     try {
         if (!transcriber) {
-            self.postMessage({ status: 'loading', message: 'Загрузка нейросети Whisper (40 МБ)...' });
+            self.postMessage({ status: 'loading', message: 'Загрузка модели Whisper в кэш...' });
             
-            // Инициализация с отслеживанием прогресса скачивания
             transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
                 quantized: true,
                 progress_callback: (progress) => {
                     if (progress.status === 'downloading') {
-                        const percent = Math.round((progress.loaded / progress.total) * 100) || 0;
+                        const percent = Math.round((progress.loaded / (progress.total || 1)) * 100);
                         self.postMessage({ 
                             status: 'loading', 
-                            message: `Загрузка модели: ${percent}% (${progress.file})` 
+                            message: `Скачивание модели: ${percent}%` 
                         });
                     }
                 }
             });
         }
 
-        self.postMessage({ status: 'processing', message: 'Идёт распознавание (это может занять до 1-2 мин)...' });
+        self.postMessage({ status: 'processing', message: 'Идёт обработка нейросетью...' });
 
-        // Запуск распознавания с разбиением на небольшие чанки по 15 секунд
+        // Явно передаём sampling_rate и упрощаем параметры, чтобы не вызывать зацикливание ONNX
         const output = await transcriber(audioData, {
-            chunk_length_s: 15,
-            stride_length_s: 2,
+            sampling_rate: 16000,
             language: 'russian',
-            task: 'transcribe',
-            return_timestamps: false,
-            // Передаем статус каждые несколько секунд
-            callback_function: (beams) => {
-                self.postMessage({ status: 'processing', message: 'Анализ аудиопотока...' });
-            }
+            task: 'transcribe'
         });
 
         self.postMessage({ status: 'complete', text: output.text });
+
     } catch (error) {
-        console.error('Worker error:', error);
-        self.postMessage({ status: 'error', error: error.message || 'Ошибка обработки нейросетью' });
+        console.error(error);
+        self.postMessage({ status: 'error', error: error.message || 'Ошибка обработки' });
     }
 });
