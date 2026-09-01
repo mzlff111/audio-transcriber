@@ -258,30 +258,6 @@
             margin-top: 15px;
             flex-wrap: wrap;
         }
-
-        @media (max-width: 600px) {
-            .container {
-                padding: 25px;
-            }
-
-            h1 {
-                font-size: 22px;
-            }
-
-            .upload-area {
-                padding: 30px 15px;
-            }
-
-            .upload-icon {
-                font-size: 36px;
-            }
-
-            .btn {
-                min-width: 100px;
-                padding: 10px 15px;
-                font-size: 13px;
-            }
-        }
     </style>
 </head>
 <body>
@@ -292,9 +268,9 @@
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">📁</div>
             <div class="upload-text">Перетащи аудиофайл сюда</div>
-            <div class="upload-subtext">или нажми, чтобы выбрать (MP3, WAV, M4A, FLAC)</div>
-            <input type="file" id="audioFile" accept="audio/*">
+            <div class="upload-subtext">или нажми, чтобы выбрать (MP3, WAV, M4A, OGG)</div>
         </div>
+        <input type="file" id="audioFile" accept="audio/*">
 
         <div class="controls">
             <button class="btn btn-primary" id="transcribeBtn" disabled>
@@ -351,17 +327,27 @@
         const downloadSrtBtn = document.getElementById('downloadSrtBtn');
         const copyBtn = document.getElementById('copyBtn');
 
-        // Drag and drop
+        // Блокируем стандартное открытие файлов браузером на уровне всей страницы
+        window.addEventListener('dragover', (e) => e.preventDefault(), false);
+        window.addEventListener('drop', (e) => e.preventDefault(), false);
+
         uploadArea.addEventListener('click', () => audioFileInput.click());
+        
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             uploadArea.classList.add('dragover');
         });
-        uploadArea.addEventListener('dragleave', () => {
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             uploadArea.classList.remove('dragover');
         });
+
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             uploadArea.classList.remove('dragover');
             handleFiles(e.dataTransfer.files);
         });
@@ -371,13 +357,9 @@
         });
 
         function handleFiles(files) {
-            if (files.length === 0) return;
+            if (!files || files.length === 0) return;
             
             audioFile = files[0];
-            if (!audioFile.type.startsWith('audio/')) {
-                showMessage('Пожалуйста, выбери аудиофайл!', 'error');
-                return;
-            }
 
             const sizeMB = (audioFile.size / (1024 * 1024)).toFixed(2);
             fileInfo.innerHTML = `
@@ -427,16 +409,16 @@
                 progressContainer.classList.add('show');
                 progressText.textContent = 'Транскрибирование...';
                 progressFill.style.width = '20%';
-                statusText.textContent = 'Декодирование аудиофайла...';
+                statusText.textContent = 'Обработка аудиофайла...';
 
-                // Декодируем аудио в 16000 Hz Float32Array (требование Whisper)
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
                 const arrayBuffer = await audioFile.arrayBuffer();
                 const decodedAudio = await audioContext.decodeAudioData(arrayBuffer);
-                const audioData = decodedAudio.getChannelData(0);
+                
+                let audioData = decodedAudio.getChannelData(0);
 
                 progressFill.style.width = '50%';
-                statusText.textContent = 'Обработка нейросетью...';
+                statusText.textContent = 'Распознавание текста...';
 
                 const output = await transcriber(audioData, {
                     top_k: 0,
@@ -449,10 +431,8 @@
                 progressText.textContent = '✓ Готово!';
                 statusText.textContent = '';
 
-                const text = output.text;
-                resultText.textContent = text;
+                resultText.textContent = output.text;
                 resultContainer.classList.add('show');
-
                 showMessage('✓ Транскрипция завершена успешно!', 'success');
 
                 await new Promise(r => setTimeout(r, 1000));
@@ -464,7 +444,7 @@
                 progressContainer.classList.remove('show');
             } finally {
                 isProcessing = false;
-                transcribeBtn.disabled = audioFile ? false : true;
+                transcribeBtn.disabled = !audioFile;
             }
         }
 
