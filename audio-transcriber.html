@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Transcriber</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 700px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9ff;
+        }
+
+        .upload-area:hover {
+            background: #f0f3ff;
+            border-color: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            background: #e8ebff;
+            border-color: #764ba2;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .upload-subtext {
+            color: #999;
+            font-size: 13px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #f0f3ff;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-secondary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .progress-container.show {
+            display: block;
+        }
+
+        .progress-label {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .status-text {
+            color: #666;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .result-container {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .result-container.show {
+            display: block;
+        }
+
+        .result-label {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .result-text {
+            background: #f8f9ff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+            color: #333;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .file-info {
+            background: #f0f3ff;
+            border-left: 4px solid #667eea;
+            padding: 12px 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #333;
+        }
+
+        .file-name {
+            font-weight: 600;
+        }
+
+        .error {
+            background: #fee;
+            border-left: 4px solid #e74c3c;
+            padding: 12px 15px;
+            border-radius: 4px;
+            color: #c0392b;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+
+        .success {
+            background: #efe;
+            border-left: 4px solid #27ae60;
+            padding: 12px 15px;
+            border-radius: 4px;
+            color: #229954;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #667eea;
+            border-top: 2px solid #764ba2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 25px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            .upload-area {
+                padding: 30px 15px;
+            }
+
+            .upload-icon {
+                font-size: 36px;
+            }
+
+            .btn {
+                min-width: 100px;
+                padding: 10px 15px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ Audio Transcriber</h1>
+        <p class="subtitle">Загрузи аудиофайл → Получи текст (локально в браузере)</p>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Перетащи аудиофайл сюда</div>
+            <div class="upload-subtext">или нажми, чтобы выбрать (MP3, WAV, M4A, FLAC)</div>
+            <input type="file" id="audioFile" accept="audio/*">
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" id="transcribeBtn" disabled>
+                Начать транскрипцию
+            </button>
+            <button class="btn btn-secondary" id="clearBtn">Очистить</button>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-label">
+                <span class="spinner"></span>
+                <span id="progressText">Загрузка модели...</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="status-text" id="statusText"></div>
+        </div>
+
+        <div id="fileInfo"></div>
+        <div id="messageBox"></div>
+
+        <div class="result-container" id="resultContainer">
+            <div class="result-label">Результат транскрипции:</div>
+            <div class="result-text" id="resultText"></div>
+            <div class="download-buttons">
+                <button class="btn btn-secondary" id="downloadTxtBtn">📥 TXT файл</button>
+                <button class="btn btn-secondary" id="downloadSrtBtn">📥 SRT субтитры</button>
+                <button class="btn btn-secondary" id="copyBtn">📋 Копировать</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
+
+        let audioFile = null;
+        let transcriber = null;
+        let isProcessing = false;
+
+        const uploadArea = document.getElementById('uploadArea');
+        const audioFileInput = document.getElementById('audioFile');
+        const transcribeBtn = document.getElementById('transcribeBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const statusText = document.getElementById('statusText');
+        const resultContainer = document.getElementById('resultContainer');
+        const resultText = document.getElementById('resultText');
+        const fileInfo = document.getElementById('fileInfo');
+        const messageBox = document.getElementById('messageBox');
+        const downloadTxtBtn = document.getElementById('downloadTxtBtn');
+        const downloadSrtBtn = document.getElementById('downloadSrtBtn');
+        const copyBtn = document.getElementById('copyBtn');
+
+        // Drag and drop
+        uploadArea.addEventListener('click', () => audioFileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        audioFileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            
+            audioFile = files[0];
+            if (!audioFile.type.startsWith('audio/')) {
+                showMessage('Пожалуйста, выбери аудиофайл!', 'error');
+                return;
+            }
+
+            const sizeMB = (audioFile.size / (1024 * 1024)).toFixed(2);
+            fileInfo.innerHTML = `
+                <div class="file-info">
+                    <div class="file-name">📎 ${audioFile.name}</div>
+                    <div>Размер: ${sizeMB} MB</div>
+                </div>
+            `;
+
+            transcribeBtn.disabled = false;
+            messageBox.innerHTML = '';
+            resultContainer.classList.remove('show');
+        }
+
+        async function initializeTranscriber() {
+            if (transcriber) return;
+            
+            progressContainer.classList.add('show');
+            progressText.textContent = 'Загрузка модели Whisper...';
+            progressFill.style.width = '0%';
+
+            try {
+                transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
+                    quantized: true,
+                });
+                progressFill.style.width = '100%';
+                progressText.textContent = '✓ Модель готова';
+                await new Promise(r => setTimeout(r, 500));
+            } catch (error) {
+                showMessage(`Ошибка при загрузке модели: ${error.message}`, 'error');
+                progressContainer.classList.remove('show');
+                throw error;
+            }
+        }
+
+        async function transcribe() {
+            if (!audioFile || isProcessing) return;
+
+            isProcessing = true;
+            transcribeBtn.disabled = true;
+            messageBox.innerHTML = '';
+            resultContainer.classList.remove('show');
+
+            try {
+                await initializeTranscriber();
+
+                progressContainer.classList.add('show');
+                progressText.textContent = 'Транскрибирование...';
+                progressFill.style.width = '0%';
+                statusText.textContent = 'Обработка аудиофайла...';
+
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const arrayBuffer = await audioFile.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+                const output = await transcriber(audioBuffer, {
+                    top_k: 0,
+                    do_sample: false,
+                    chunk_length_s: 30,
+                    stride_length_s: 5,
+                });
+
+                progressFill.style.width = '100%';
+                progressText.textContent = '✓ Готово!';
+                statusText.textContent = '';
+
+                const text = output.text;
+                resultText.textContent = text;
+                resultContainer.classList.add('show');
+
+                showMessage('✓ Транскрипция завершена успешно!', 'success');
+
+                await new Promise(r => setTimeout(r, 1000));
+                progressContainer.classList.remove('show');
+
+            } catch (error) {
+                showMessage(`Ошибка транскрипции: ${error.message}`, 'error');
+                progressContainer.classList.remove('show');
+            } finally {
+                isProcessing = false;
+                transcribeBtn.disabled = audioFile ? false : true;
+            }
+        }
+
+        function showMessage(text, type) {
+            messageBox.innerHTML = `<div class="${type}">${text}</div>`;
+        }
+
+        function downloadFile(text, filename) {
+            const element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+
+        function generateSRT(text) {
+            const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+            let srt = '';
+            let startTime = 0;
+            
+            sentences.forEach((sentence, index) => {
+                const duration = Math.max(2, Math.ceil(sentence.trim().length / 30));
+                const endTime = startTime + duration;
+                
+                srt += `${index + 1}\n`;
+                srt += `${formatTime(startTime)} --> ${formatTime(endTime)}\n`;
+                srt += `${sentence.trim()}\n\n`;
+                
+                startTime = endTime;
+            });
+            
+            return srt;
+        }
+
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 1000);
+            
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+        }
+
+        transcribeBtn.addEventListener('click', transcribe);
+
+        clearBtn.addEventListener('click', () => {
+            audioFile = null;
+            audioFileInput.value = '';
+            fileInfo.innerHTML = '';
+            messageBox.innerHTML = '';
+            resultContainer.classList.remove('show');
+            progressContainer.classList.remove('show');
+            transcribeBtn.disabled = true;
+        });
+
+        downloadTxtBtn.addEventListener('click', () => {
+            downloadFile(resultText.textContent, `transcription_${Date.now()}.txt`);
+        });
+
+        downloadSrtBtn.addEventListener('click', () => {
+            const srt = generateSRT(resultText.textContent);
+            downloadFile(srt, `subtitles_${Date.now()}.srt`);
+        });
+
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(resultText.textContent).then(() => {
+                showMessage('✓ Текст скопирован!', 'success');
+            });
+        });
+    </script>
+</body>
+</html>
