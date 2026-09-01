@@ -1,6 +1,6 @@
-import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.14.0';
 
-// Отключаем попытки загрузки локальных моделей
+// Отключаем локальные проверки
 env.allowLocalModels = false;
 
 let transcriber = null;
@@ -10,7 +10,9 @@ self.addEventListener('message', async (event) => {
 
     try {
         if (!transcriber) {
-            self.postMessage({ status: 'loading', message: 'Загрузка модели Whisper...' });
+            self.postMessage({ status: 'loading', message: 'Загрузка легкой модели Whisper...' });
+            
+            // Загружаем оптимизированную модель
             transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
                 quantized: true,
             });
@@ -18,11 +20,13 @@ self.addEventListener('message', async (event) => {
 
         self.postMessage({ status: 'processing', message: 'Распознавание текста...' });
 
+        // Разбиваем длинное аудио на небольшие порции, чтобы не перегружать память
         const output = await transcriber(audioData, {
-            top_k: 0,
-            do_sample: false,
-            chunk_length_s: 30,
-            stride_length_s: 5,
+            chunk_length_s: 20,
+            stride_length_s: 3,
+            language: 'russian',
+            task: 'transcribe',
+            return_timestamps: false
         });
 
         self.postMessage({ status: 'complete', text: output.text });
