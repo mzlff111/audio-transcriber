@@ -429,17 +429,26 @@
                 progressFill.style.width = '0%';
                 statusText.textContent = 'Обработка аудиофайла...';
 
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const arrayBuffer = await audioFile.arrayBuffer();
-                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-                const output = await transcriber(audioBuffer, {
-                    top_k: 0,
-                    do_sample: false,
-                    chunk_length_s: 30,
-                    stride_length_s: 5,
-                });
+                
+                // 1. Создаем AudioContext с частотой 16000 Гц (требование модели Whisper)
+const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+const arrayBuffer = await audioFile.arrayBuffer();
+const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
+// 2. Извлекаем сырой Float32Array из первого канала
+const audioData = audioBuffer.getChannelData(0);
+
+// 3. Передаем в транскрибер именно Float32Array
+const output = await transcriber(audioData, {
+    top_k: 0,
+    do_sample: false,
+    chunk_length_s: 30,
+    stride_length_s: 5,
+});
+
+
+                
                 progressFill.style.width = '100%';
                 progressText.textContent = '✓ Готово!';
                 statusText.textContent = '';
